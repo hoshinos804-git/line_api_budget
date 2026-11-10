@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家計簿入力</title>
+  <style>
+    /* スマートフォン向けのデザイン（LINE風） */
+    body { font-family: sans-serif; background-color: #f5f6f6; padding: 10px; margin: 0; }
+    .record-row { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+    label { display: block; font-size: 14px; margin-bottom: 10px; color: #333; }
+    select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; /* スマホでのズーム防止 */ }
+    button { width: 100%; padding: 14px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+    .btn-add { background-color: #fff; color: #00B900; border: 1px solid #00B900; }
+    .btn-submit { background-color: #00B900; color: white; margin-top: 10px; }
+    .btn-remove { background-color: #ff4d4f; color: white; width: auto; padding: 6px 12px; font-size: 12px; margin: 0; }
+  </style>
+</head>
+<body>
+
+  <form id="kakeiboForm">
+    <!-- 入力項目のコンテナ -->
+    <!-- <datalist id="store-list"> や <select name="category"> の <option> の内容は独自の費目を自由に追加・変更可 -->
+    <div id="recordsContainer">
+      
+      <!-- 1つ目の入力枠 -->
+      <div class="record-row">
+        <div class="row-header">
+          <strong>入力項目 1</strong>
+        </div>
+        <label>収支:
+          <select name="type">
+            <option value="支出">支出</option>
+            <option value="収入">収入</option>
+          </select>
+        </label>
+        <label>購入先・受取元:
+          <!-- datalistを使うと、選択肢から選ぶことも、自由に入力することも可能になります -->
+          <input type="text" name="store" list="store-list" placeholder="例: 近所のスーパー" required>
+          <datalist id="store-list">
+            <option value="スーパーA">
+            <option value="コンビニ">
+            <option value="ドラッグストア">
+            <option value="Amazon">
+          </datalist>
+        </label>
+        <label>何費:
+          <select name="category">
+            <option value="食費">食費</option>
+            <option value="日用品">日用品</option>
+            <option value="交通費">交通費</option>
+            <option value="交際費">交際費</option>
+            <option value="その他">その他</option>
+          </select>
+        </label>
+        <label>品目:
+          <input type="text" name="item" placeholder="例: 野菜、洗剤" required>
+        </label>
+        <label>金額:
+          <input type="number" name="amount" placeholder="0" required>
+        </label>
+      </div>
+
+    </div>
+
+    <button type="button" class="btn-add" onclick="addRow()">＋ 項目を追加</button>
+    <button type="submit" class="btn-submit">スプレッドシートに登録</button>
+  </form>
+
+  <script>
+    // ★重要：ここにステップ1で取得したGASのWebアプリURLを貼り付けてください★
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzNFk4t3t0yzb_78mUixvvaAGlKSNRSz7gLg8rIOtWrxMlbLS5gBJDiRvBqqYFWvFhVjQ/exec';
+
+    // 項目追加ボタンの処理
+    function addRow() {
+      const container = document.getElementById('recordsContainer');
+      const rowCount = container.children.length + 1;
+      
+      // 最初に入力した「購入先」をコピーするための処理（スーパーでの複数買いを想定）
+      const firstStore = document.querySelector('[name="store"]').value;
+      const firstType = document.querySelector('[name="type"]').value;
+
+      const newRow = document.createElement('div');
+      newRow.className = 'record-row';
+      newRow.innerHTML = `
+        <div class="row-header">
+          <strong>入力項目 ${rowCount}</strong>
+          <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">削除</button>
+        </div>
+        <label>収支: 
+          <select name="type">
+            <option value="支出" ${firstType === '支出' ? 'selected' : ''}>支出</option>
+            <option value="収入" ${firstType === '収入' ? 'selected' : ''}>収入</option>
+          </select>
+        </label>
+        <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${firstStore}" required></label>
+        <label>何費: 
+          <select name="category">
+            <option value="食費">食費</option>
+            <option value="日用品">日用品</option>
+            <option value="交通費">交通費</option>
+            <option value="交際費">交際費</option>
+            <option value="その他">その他</option>
+          </select>
+        </label>
+        <label>品目: <input type="text" name="item" placeholder="例: 豚肉、おやつ" required></label>
+        <label>金額: <input type="number" name="amount" placeholder="0" required></label>
+      `;
+      container.appendChild(newRow);
+    }
+
+    // フォーム送信処理
+    document.getElementById('kakeiboForm').addEventListener('submit', function(e) {
+      e.preventDefault(); // 画面遷移を防ぐ
+      
+      const rows = document.querySelectorAll('.record-row');
+      const data = [];
+
+      // 全ての入力枠からデータを取得して配列にする
+      rows.forEach(row => {
+        data.push({
+          type: row.querySelector('[name="type"]').value,
+          store: row.querySelector('[name="store"]').value,
+          category: row.querySelector('[name="category"]').value,
+          item: row.querySelector('[name="item"]').value,
+          amount: Number(row.querySelector('[name="amount"]').value)
+        });
+      });
+
+      // ボタンを「送信中」に変更して連打防止
+      const submitBtn = document.querySelector('.btn-submit');
+      submitBtn.textContent = "送信中...";
+      submitBtn.disabled = true;
+
+      // GASへ送信
+      fetch(GAS_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        // GASのCORS（セキュリティ）制限を回避するため text/plain で送るのが鉄則です
+        headers: { 'Content-Type': 'text/plain;charset
