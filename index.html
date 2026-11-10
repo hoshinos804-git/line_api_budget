@@ -126,84 +126,115 @@
       container.appendChild(newRow);
     }
 
-    // ★新規：レシート画像が選択された時の処理
+    // ★変更：レシート画像が選択された時、圧縮して送信する処理
     function handleImageUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      
       // 読み込み中UIを表示
       document.getElementById('loadingOverlay').style.display = 'flex';
+      document.getElementById('loadingText').textContent = '画像を圧縮しています...';
+
+      const reader = new FileReader();
       
       reader.onload = function(e) {
-        const base64Image = e.target.result;
+        const img = new Image();
         
-        // GASへOCRリクエストを送信
-        fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'ocr',
-            image: base64Image
-          })
-        })
-        .then(response => response.json())
-        .then(result => {
-          if(result.status === "success" && result.data && result.data.length > 0) {
-            // 現在の入力枠をすべてクリア
-            const container = document.getElementById('recordsContainer');
-            container.innerHTML = '';
-            
-            // 返ってきた品目ごとに枠を生成して埋める
-            result.data.forEach((itemData, index) => {
-              const row = document.createElement('div');
-              row.className = 'record-row';
-              
-              // ▼ 簡易的な推測ロジックを削除し、Geminiが判定した category をそのまま使う
-              const aiCategory = itemData.category || 'その他'; 
-              
-              row.innerHTML = `
-                <div class="row-header">
-                  <strong>読取項目 ${index + 1}</strong>
-                  <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">削除</button>
-                </div>
-                <label>収支: 
-                  <select name="type"><option value="支出" selected>支出</option><option value="収入">収入</option></select>
-                </label>
-                <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${itemData.store || ''}" required></label>
-                <label>何費: 
-                  <select name="category">
-                    <option value="食費" ${aiCategory === '食費' ? 'selected' : ''}>食費</option>
-                    <option value="日用品" ${aiCategory === '日用品' ? 'selected' : ''}>日用品</option>
-                    <option value="交通費" ${aiCategory === '交通費' ? 'selected' : ''}>交通費</option>
-                    <option value="交際費" ${aiCategory === '交際費' ? 'selected' : ''}>交際費</option>
-                    <option value="その他" ${aiCategory === 'その他' ? 'selected' : ''}>その他</option>
-                  </select>
-                </label>
-                <label>品目: <input type="text" name="item" value="${itemData.item || ''}" required></label>
-                <label>金額: <input type="number" name="amount" value="${itemData.amount || ''}" required></label>
-              `;
-              container.appendChild(row);
-            });
-            alert('読み取りが完了しました。内容を確認・修正してください。');
+        img.onload = function() {
+          // --- ▼ 画像の自動リサイズ処理 ▼ ---
+          // 最大の幅と高さを指定（1000px程度あればレシートの文字は十分読めます）
+          const MAX_WIDTH = 1000;
+          const MAX_HEIGHT = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          // 縦横比を保ったまま縮小する計算
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
           } else {
-            alert('レシートから項目を読み取れませんでした。');
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
           }
-        })
-        .catch(error => {
-          console.error('OCR Error:', error);
-          alert('画像読み取りエラーが発生しました。');
-        })
-        .finally(() => {
-          // 読み込み中UIを非表示
-          document.getElementById('loadingOverlay').style.display = 'none';
-          // ファイル選択をリセット（同じファイルを再度選べるようにする）
-          event.target.value = '';
-        });
+
+          // 見えないキャンバス(Canvas)を作成し、そこにリサイズした画像を描画
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // キャンバスの画像を軽量なJPEG形式のBase64データに変換（0.7 は画質70%を意味します）
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          // --- ▲ 画像の自動リサイズ処理 ここまで ▲ ---
+
+          document.getElementById('loadingText').textContent = 'レシートを読み取っています...';
+
+          // GASへOCRリクエストを送信
+          fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'ocr',
+              image: compressedBase64 // 圧縮・リサイズ後の画像を送信する
+            })
+          })
+          .then(response => response.json())
+          .then(result => {
+            if(result.status === "success" && result.data && result.data.length > 0) {
+              const container = document.getElementById('recordsContainer');
+              container.innerHTML = '';
+              
+              result.data.forEach((itemData, index) => {
+                const row = document.createElement('div');
+                row.className = 'record-row';
+                const aiCategory = itemData.category || 'その他'; 
+                
+                row.innerHTML = `
+                  <div class="row-header">
+                    <strong>読取項目 ${index + 1}</strong>
+                    <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">削除</button>
+                  </div>
+                  <label>収支: 
+                    <select name="type"><option value="支出" selected>支出</option><option value="収入">収入</option></select>
+                  </label>
+                  <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${itemData.store || ''}" required></label>
+                  <label>何費: 
+                    <select name="category">
+                      <option value="食費" ${aiCategory === '食費' ? 'selected' : ''}>食費</option>
+                      <option value="日用品" ${aiCategory === '日用品' ? 'selected' : ''}>日用品</option>
+                      <option value="交通費" ${aiCategory === '交通費' ? 'selected' : ''}>交通費</option>
+                      <option value="交際費" ${aiCategory === '交際費' ? 'selected' : ''}>交際費</option>
+                      <option value="その他" ${aiCategory === 'その他' ? 'selected' : ''}>その他</option>
+                    </select>
+                  </label>
+                  <label>品目: <input type="text" name="item" value="${itemData.item || ''}" required></label>
+                  <label>金額: <input type="number" name="amount" value="${itemData.amount || ''}" required></label>
+                `;
+                container.appendChild(row);
+              });
+              alert('読み取りが完了しました。内容を確認・修正してください。');
+            } else {
+              alert('レシートから項目を読み取れませんでした。');
+            }
+          })
+          .catch(error => {
+            console.error('OCR Error:', error);
+            alert('画像読み取りエラーが発生しました。');
+          })
+          .finally(() => {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            event.target.value = '';
+          });
+        };
+        
+        img.src = e.target.result;
       };
       
-      // 画像をBase64に変換して読み込む
       reader.readAsDataURL(file);
     }
 
