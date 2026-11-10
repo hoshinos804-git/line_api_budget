@@ -138,4 +138,28 @@
         method: 'POST',
         redirect: 'follow',
         // GASのCORS（セキュリティ）制限を回避するため text/plain で送るのが鉄則です
-        headers: { 'Content-Type': 'text/plain;charset
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(data)
+      })
+      .then(response => response.json())
+      .then(result => {
+        if(result.status === "success") {
+          alert('登録が完了しました！');
+          // 画面をリロードして初期状態に戻す
+          window.location.reload();
+        } else {
+          alert('エラー: ' + result.message);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('通信エラーが発生しました。');
+      })
+      .finally(() => {
+        submitBtn.textContent = "スプレッドシートに登録";
+        submitBtn.disabled = false;
+      });
+    });
+  </script>
+</body>
+</html>
