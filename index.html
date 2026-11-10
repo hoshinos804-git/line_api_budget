@@ -159,8 +159,9 @@
             result.data.forEach((itemData, index) => {
               const row = document.createElement('div');
               row.className = 'record-row';
-              // 費目の自動判定（簡易版）: "食費"か"日用品"を推測
-              const guessedCategory = (itemData.item.includes('ペーパー') || itemData.item.includes('洗剤')) ? '日用品' : '食費';
+              
+              // ▼ 簡易的な推測ロジックを削除し、Geminiが判定した category をそのまま使う
+              const aiCategory = itemData.category || 'その他'; 
               
               row.innerHTML = `
                 <div class="row-header">
@@ -173,11 +174,11 @@
                 <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${itemData.store || ''}" required></label>
                 <label>何費: 
                   <select name="category">
-                    <option value="食費" ${guessedCategory === '食費' ? 'selected' : ''}>食費</option>
-                    <option value="日用品" ${guessedCategory === '日用品' ? 'selected' : ''}>日用品</option>
-                    <option value="交通費">交通費</option>
-                    <option value="交際費">交際費</option>
-                    <option value="その他">その他</option>
+                    <option value="食費" ${aiCategory === '食費' ? 'selected' : ''}>食費</option>
+                    <option value="日用品" ${aiCategory === '日用品' ? 'selected' : ''}>日用品</option>
+                    <option value="交通費" ${aiCategory === '交通費' ? 'selected' : ''}>交通費</option>
+                    <option value="交際費" ${aiCategory === '交際費' ? 'selected' : ''}>交際費</option>
+                    <option value="その他" ${aiCategory === 'その他' ? 'selected' : ''}>その他</option>
                   </select>
                 </label>
                 <label>品目: <input type="text" name="item" value="${itemData.item || ''}" required></label>
