@@ -3,28 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>家計簿入力</title>
+  <title>家計簿入力（レシート読取対応）</title>
   <style>
-    /* スマートフォン向けのデザイン（LINE風） */
     body { font-family: sans-serif; background-color: #f5f6f6; padding: 10px; margin: 0; }
+    .header-actions { display: flex; justify-content: space-between; margin-bottom: 15px; }
+    .camera-btn { background-color: #333; color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .camera-btn span { margin-left: 8px; }
+    /* input type="file" は非表示にし、ボタンで代用する */
+    #receiptInput { display: none; }
+    
     .record-row { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
     label { display: block; font-size: 14px; margin-bottom: 10px; color: #333; }
-    select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; /* スマホでのズーム防止 */ }
+    select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
     button { width: 100%; padding: 14px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
     .btn-add { background-color: #fff; color: #00B900; border: 1px solid #00B900; }
     .btn-submit { background-color: #00B900; color: white; margin-top: 10px; }
     .btn-remove { background-color: #ff4d4f; color: white; width: auto; padding: 6px 12px; font-size: 12px; margin: 0; }
+    
+    /* ローディング表示用 */
+    #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-weight: bold; color: #333; }
+    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #00B900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
+  <!-- 読み込み中の画面 -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadingText">レシートを読み取っています...</div>
+  </div>
+
+  <div class="header-actions">
+    <label class="camera-btn">
+      📷 <span>レシートを読み取る</span>
+      <!-- accept="image/*" でカメラと画像フォルダ両方を呼び出せます -->
+      <input type="file" id="receiptInput" accept="image/*" onchange="handleImageUpload(event)">
+    </label>
+  </div>
+
   <form id="kakeiboForm">
-    <!-- 入力項目のコンテナ -->
-    <!-- <datalist id="store-list"> や <select name="category"> の <option> の内容は独自の費目を自由に追加・変更可 -->
     <div id="recordsContainer">
-      
-      <!-- 1つ目の入力枠 -->
       <div class="record-row">
         <div class="row-header">
           <strong>入力項目 1</strong>
@@ -36,8 +56,7 @@
           </select>
         </label>
         <label>購入先・受取元:
-          <!-- datalistを使うと、選択肢から選ぶことも、自由に入力することも可能になります -->
-          <input type="text" name="store" list="store-list" placeholder="例: 近所のスーパー" required>
+          <input type="text" name="store" list="store-list" required>
           <datalist id="store-list">
             <option value="スーパーA">
             <option value="コンビニ">
@@ -55,31 +74,28 @@
           </select>
         </label>
         <label>品目:
-          <input type="text" name="item" placeholder="例: 野菜、洗剤" required>
+          <input type="text" name="item" required>
         </label>
         <label>金額:
-          <input type="number" name="amount" placeholder="0" required>
+          <input type="number" name="amount" required>
         </label>
       </div>
-
     </div>
 
-    <button type="button" class="btn-add" onclick="addRow()">＋ 項目を追加</button>
+    <button type="button" class="btn-add" onclick="addRow()">＋ 手動で項目を追加</button>
     <button type="submit" class="btn-submit">スプレッドシートに登録</button>
   </form>
 
   <script>
-    // ★重要：ここにステップ1で取得したGASのWebアプリURLを貼り付けてください★
+    // ★重要：ここにあなたのGASのWebアプリURLを貼り付けてください★
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzNFk4t3t0yzb_78mUixvvaAGlKSNRSz7gLg8rIOtWrxMlbLS5gBJDiRvBqqYFWvFhVjQ/exec';
 
-    // 項目追加ボタンの処理
+    // 手動で項目を追加する関数（変更なし）
     function addRow() {
       const container = document.getElementById('recordsContainer');
       const rowCount = container.children.length + 1;
-      
-      // 最初に入力した「購入先」をコピーするための処理（スーパーでの複数買いを想定）
-      const firstStore = document.querySelector('[name="store"]').value;
-      const firstType = document.querySelector('[name="type"]').value;
+      const firstStore = document.querySelector('[name="store"]') ? document.querySelector('[name="store"]').value : '';
+      const firstType = document.querySelector('[name="type"]') ? document.querySelector('[name="type"]').value : '支出';
 
       const newRow = document.createElement('div');
       newRow.className = 'record-row';
@@ -104,20 +120,99 @@
             <option value="その他">その他</option>
           </select>
         </label>
-        <label>品目: <input type="text" name="item" placeholder="例: 豚肉、おやつ" required></label>
-        <label>金額: <input type="number" name="amount" placeholder="0" required></label>
+        <label>品目: <input type="text" name="item" required></label>
+        <label>金額: <input type="number" name="amount" required></label>
       `;
       container.appendChild(newRow);
     }
 
-    // フォーム送信処理
+    // ★新規：レシート画像が選択された時の処理
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      
+      // 読み込み中UIを表示
+      document.getElementById('loadingOverlay').style.display = 'flex';
+      
+      reader.onload = function(e) {
+        const base64Image = e.target.result;
+        
+        // GASへOCRリクエストを送信
+        fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'ocr',
+            image: base64Image
+          })
+        })
+        .then(response => response.json())
+        .then(result => {
+          if(result.status === "success" && result.data && result.data.length > 0) {
+            // 現在の入力枠をすべてクリア
+            const container = document.getElementById('recordsContainer');
+            container.innerHTML = '';
+            
+            // 返ってきた品目ごとに枠を生成して埋める
+            result.data.forEach((itemData, index) => {
+              const row = document.createElement('div');
+              row.className = 'record-row';
+              // 費目の自動判定（簡易版）: "食費"か"日用品"を推測
+              const guessedCategory = (itemData.item.includes('ペーパー') || itemData.item.includes('洗剤')) ? '日用品' : '食費';
+              
+              row.innerHTML = `
+                <div class="row-header">
+                  <strong>読取項目 ${index + 1}</strong>
+                  <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">削除</button>
+                </div>
+                <label>収支: 
+                  <select name="type"><option value="支出" selected>支出</option><option value="収入">収入</option></select>
+                </label>
+                <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${itemData.store || ''}" required></label>
+                <label>何費: 
+                  <select name="category">
+                    <option value="食費" ${guessedCategory === '食費' ? 'selected' : ''}>食費</option>
+                    <option value="日用品" ${guessedCategory === '日用品' ? 'selected' : ''}>日用品</option>
+                    <option value="交通費">交通費</option>
+                    <option value="交際費">交際費</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </label>
+                <label>品目: <input type="text" name="item" value="${itemData.item || ''}" required></label>
+                <label>金額: <input type="number" name="amount" value="${itemData.amount || ''}" required></label>
+              `;
+              container.appendChild(row);
+            });
+            alert('読み取りが完了しました。内容を確認・修正してください。');
+          } else {
+            alert('レシートから項目を読み取れませんでした。');
+          }
+        })
+        .catch(error => {
+          console.error('OCR Error:', error);
+          alert('画像読み取りエラーが発生しました。');
+        })
+        .finally(() => {
+          // 読み込み中UIを非表示
+          document.getElementById('loadingOverlay').style.display = 'none';
+          // ファイル選択をリセット（同じファイルを再度選べるようにする）
+          event.target.value = '';
+        });
+      };
+      
+      // 画像をBase64に変換して読み込む
+      reader.readAsDataURL(file);
+    }
+
+    // スプレッドシートへの送信処理（変更なし）
     document.getElementById('kakeiboForm').addEventListener('submit', function(e) {
-      e.preventDefault(); // 画面遷移を防ぐ
+      e.preventDefault();
       
       const rows = document.querySelectorAll('.record-row');
       const data = [];
 
-      // 全ての入力枠からデータを取得して配列にする
       rows.forEach(row => {
         data.push({
           type: row.querySelector('[name="type"]').value,
@@ -128,16 +223,14 @@
         });
       });
 
-      // ボタンを「送信中」に変更して連打防止
       const submitBtn = document.querySelector('.btn-submit');
       submitBtn.textContent = "送信中...";
       submitBtn.disabled = true;
+      document.getElementById('loadingText').textContent = 'スプレッドシートに保存しています...';
+      document.getElementById('loadingOverlay').style.display = 'flex';
 
-      // GASへ送信
       fetch(GAS_URL, {
         method: 'POST',
-        redirect: 'follow',
-        // GASのCORS（セキュリティ）制限を回避するため text/plain で送るのが鉄則です
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(data)
       })
@@ -145,19 +238,19 @@
       .then(result => {
         if(result.status === "success") {
           alert('登録が完了しました！');
-          // 画面をリロードして初期状態に戻す
           window.location.reload();
         } else {
           alert('エラー: ' + result.message);
         }
       })
       .catch(error => {
-        console.error('Error:', error);
+        console.error('Submit Error:', error);
         alert('通信エラーが発生しました。');
       })
       .finally(() => {
         submitBtn.textContent = "スプレッドシートに登録";
         submitBtn.disabled = false;
+        document.getElementById('loadingOverlay').style.display = 'none';
       });
     });
   </script>
