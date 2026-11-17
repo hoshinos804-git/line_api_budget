@@ -75,7 +75,7 @@
         document.getElementById('inputMethod').value = 'OCR';
         alert('読み取り完了しました。内容を確認・修正してください。');
       } else {
-        alert('読み取りに失敗しました。');
+        alert('エラー詳細: ' + result.message);
       }
     }
 
