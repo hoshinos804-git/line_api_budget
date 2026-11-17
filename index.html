@@ -3,288 +3,107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>家計簿入力（レシート読取対応）</title>
+  <title>家計簿アプリ</title>
   <style>
-    body { font-family: sans-serif; background-color: #f5f6f6; padding: 10px; margin: 0; }
-    .header-actions { display: flex; justify-content: space-between; margin-bottom: 15px; }
-    .camera-btn { background-color: #333; color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .camera-btn span { margin-left: 8px; }
-    /* input type="file" は非表示にし、ボタンで代用する */
-    #receiptInput { display: none; }
-    
-    .record-row { background: white; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
-    label { display: block; font-size: 14px; margin-bottom: 10px; color: #333; }
-    select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
-    button { width: 100%; padding: 14px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-    .btn-add { background-color: #fff; color: #00B900; border: 1px solid #00B900; }
-    .btn-submit { background-color: #00B900; color: white; margin-top: 10px; }
-    .btn-remove { background-color: #ff4d4f; color: white; width: auto; padding: 6px 12px; font-size: 12px; margin: 0; }
-    
-    /* ローディング表示用 */
-    #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-weight: bold; color: #333; }
-    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #00B900; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { width: 100%; padding: 10px; margin-top: 10px; box-sizing: border-box; }
+    #loading { display: none; color: blue; }
   </style>
 </head>
 <body>
+  <h2>レシート読み取り</h2>
+  
+  <!-- レシート撮影用 -->
+  <input type="file" id="receiptImage" accept="image/*" capture="environment">
+  <button onclick="analyzeImage()">画像を読み取る</button>
+  <p id="loading">読み取り中...（十数秒かかります）</p>
 
-  <!-- 読み込み中の画面 -->
-  <div id="loadingOverlay">
-    <div class="spinner"></div>
-    <div id="loadingText">レシートを読み取っています...</div>
-  </div>
+  <hr>
 
-  <div class="header-actions">
-    <label class="camera-btn">
-      📷 <span>レシートを読み取る</span>
-      <!-- accept="image/*" でカメラと画像フォルダ両方を呼び出せます -->
-      <input type="file" id="receiptInput" accept="image/*" onchange="handleImageUpload(event)">
-    </label>
-  </div>
+  <h2>編集・確認画面（手入力も可）</h2>
+  <label>日付: <input type="text" id="date"></label>
+  <label>店舗名: <input type="text" id="store"></label>
+  <label>金額: <input type="number" id="amount"></label>
+  <label>品目: <input type="text" id="items"></label>
+  <input type="hidden" id="imageUrl">
+  <input type="hidden" id="inputMethod" value="手入力">
 
-  <form id="kakeiboForm">
-    <div id="recordsContainer">
-      <div class="record-row">
-        <div class="row-header">
-          <strong>入力項目 1</strong>
-        </div>
-        <label>収支:
-          <select name="type">
-            <option value="支出">支出</option>
-            <option value="収入">収入</option>
-          </select>
-        </label>
-        <label>購入先・受取元:
-          <input type="text" name="store" list="store-list" required>
-          <datalist id="store-list">
-            <option value="スーパーA">
-            <option value="コンビニ">
-            <option value="ドラッグストア">
-            <option value="Amazon">
-          </datalist>
-        </label>
-        <label>何費:
-          <select name="category">
-            <option value="食費">食費</option>
-            <option value="日用品">日用品</option>
-            <option value="交通費">交通費</option>
-            <option value="交際費">交際費</option>
-            <option value="その他">その他</option>
-          </select>
-        </label>
-        <label>品目:
-          <input type="text" name="item" required>
-        </label>
-        <label>金額:
-          <input type="number" name="amount" required>
-        </label>
-      </div>
-    </div>
-
-    <button type="button" class="btn-add" onclick="addRow()">＋ 手動で項目を追加</button>
-    <button type="submit" class="btn-submit">スプレッドシートに登録</button>
-  </form>
+  <button onclick="saveData()">この内容で確定する</button>
 
   <script>
-    // ★重要：ここにあなたのGASのWebアプリURLを貼り付けてください★
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzNFk4t3t0yzb_78mUixvvaAGlKSNRSz7gLg8rIOtWrxMlbLS5gBJDiRvBqqYFWvFhVjQ/exec';
 
-    // 手動で項目を追加する関数（変更なし）
-    function addRow() {
-      const container = document.getElementById('recordsContainer');
-      const rowCount = container.children.length + 1;
-      const firstStore = document.querySelector('[name="store"]') ? document.querySelector('[name="store"]').value : '';
-      const firstType = document.querySelector('[name="type"]') ? document.querySelector('[name="type"]').value : '支出';
-
-      const newRow = document.createElement('div');
-      newRow.className = 'record-row';
-      newRow.innerHTML = `
-        <div class="row-header">
-          <strong>入力項目 ${rowCount}</strong>
-          <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">削除</button>
-        </div>
-        <label>収支: 
-          <select name="type">
-            <option value="支出" ${firstType === '支出' ? 'selected' : ''}>支出</option>
-            <option value="収入" ${firstType === '収入' ? 'selected' : ''}>収入</option>
-          </select>
-        </label>
-        <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${firstStore}" required></label>
-        <label>何費: 
-          <select name="category">
-            <option value="食費">食費</option>
-            <option value="日用品">日用品</option>
-            <option value="交通費">交通費</option>
-            <option value="交際費">交際費</option>
-            <option value="その他">その他</option>
-          </select>
-        </label>
-        <label>品目: <input type="text" name="item" required></label>
-        <label>金額: <input type="number" name="amount" required></label>
-      `;
-      container.appendChild(newRow);
-    }
-
-    // ★変更：レシート画像が選択された時、圧縮して送信する処理
-    function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      // 読み込み中UIを表示
-      document.getElementById('loadingOverlay').style.display = 'flex';
-      document.getElementById('loadingText').textContent = '画像を圧縮しています...';
-
-      const reader = new FileReader();
-      
-      reader.onload = function(e) {
-        const img = new Image();
-        
-        img.onload = function() {
-          // --- ▼ 画像の自動リサイズ処理 ▼ ---
-          // 最大の幅と高さを指定（1000px程度あればレシートの文字は十分読めます）
-          const MAX_WIDTH = 1000;
-          const MAX_HEIGHT = 1000;
-          let width = img.width;
-          let height = img.height;
-
-          // 縦横比を保ったまま縮小する計算
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          // 見えないキャンバス(Canvas)を作成し、そこにリサイズした画像を描画
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // キャンバスの画像を軽量なJPEG形式のBase64データに変換（0.7 は画質70%を意味します）
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-          // --- ▲ 画像の自動リサイズ処理 ここまで ▲ ---
-
-          document.getElementById('loadingText').textContent = 'レシートを読み取っています...';
-
-          // GASへOCRリクエストを送信
-          fetch(GAS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'ocr',
-              image: compressedBase64 // 圧縮・リサイズ後の画像を送信する
-            })
-          })
-          .then(response => response.json())
-          .then(result => {
-            if(result.status === "success" && result.data && result.data.length > 0) {
-              const container = document.getElementById('recordsContainer');
-              container.innerHTML = '';
-              
-              result.data.forEach((itemData, index) => {
-                const row = document.createElement('div');
-                row.className = 'record-row';
-                const aiCategory = itemData.category || 'その他'; 
-                
-                row.innerHTML = `
-                  <div class="row-header">
-                    <strong>読取項目 ${index + 1}</strong>
-                    <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">削除</button>
-                  </div>
-                  <label>収支: 
-                    <select name="type"><option value="支出" selected>支出</option><option value="収入">収入</option></select>
-                  </label>
-                  <label>購入先・受取元: <input type="text" name="store" list="store-list" value="${itemData.store || ''}" required></label>
-                  <label>何費: 
-                    <select name="category">
-                      <option value="食費" ${aiCategory === '食費' ? 'selected' : ''}>食費</option>
-                      <option value="日用品" ${aiCategory === '日用品' ? 'selected' : ''}>日用品</option>
-                      <option value="交通費" ${aiCategory === '交通費' ? 'selected' : ''}>交通費</option>
-                      <option value="交際費" ${aiCategory === '交際費' ? 'selected' : ''}>交際費</option>
-                      <option value="その他" ${aiCategory === 'その他' ? 'selected' : ''}>その他</option>
-                    </select>
-                  </label>
-                  <label>品目: <input type="text" name="item" value="${itemData.item || ''}" required></label>
-                  <label>金額: <input type="number" name="amount" value="${itemData.amount || ''}" required></label>
-                `;
-                container.appendChild(row);
-              });
-              alert('読み取りが完了しました。内容を確認・修正してください。');
-            } else {
-              alert('エラー詳細: ' + (result.message || '画像から文字を検出できませんでした'));
-            }
-          })
-          .catch(error => {
-            console.error('OCR Error:', error);
-            alert('画像読み取りエラーが発生しました。');
-          })
-          .finally(() => {
-            document.getElementById('loadingOverlay').style.display = 'none';
-            event.target.value = '';
-          });
-        };
-        
-        img.src = e.target.result;
-      };
-      
-      reader.readAsDataURL(file);
-    }
-
-    // スプレッドシートへの送信処理（変更なし）
-    document.getElementById('kakeiboForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      const rows = document.querySelectorAll('.record-row');
-      const data = [];
-
-      rows.forEach(row => {
-        data.push({
-          type: row.querySelector('[name="type"]').value,
-          store: row.querySelector('[name="store"]').value,
-          category: row.querySelector('[name="category"]').value,
-          item: row.querySelector('[name="item"]').value,
-          amount: Number(row.querySelector('[name="amount"]').value)
-        });
+    // 画像をBase64形式に変換する関数
+    function getBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
       });
+    }
 
-      const submitBtn = document.querySelector('.btn-submit');
-      submitBtn.textContent = "送信中...";
-      submitBtn.disabled = true;
-      document.getElementById('loadingText').textContent = 'スプレッドシートに保存しています...';
-      document.getElementById('loadingOverlay').style.display = 'flex';
+    // 1. 画像解析処理
+    async function analyzeImage() {
+      const fileInput = document.getElementById('receiptImage');
+      if (!fileInput.files.length) return alert('画像を選択してください');
 
-      fetch(GAS_URL, {
+      document.getElementById('loading').style.display = 'block';
+      const file = fileInput.files[0];
+      
+      // 画像データをBase64に変換し、ヘッダー部分(data:image/jpeg;base64,)を切り離す
+      const base64Data = await getBase64(file);
+      const base64String = base64Data.split(',')[1];
+      const mimeType = file.type;
+
+      // GASに送信
+      const response = await fetch(GAS_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(data)
-      })
-      .then(response => response.json())
-      .then(result => {
-        if(result.status === "success") {
-          alert('登録が完了しました！');
-          window.location.reload();
-        } else {
-          alert('エラー: ' + result.message);
-        }
-      })
-      .catch(error => {
-        console.error('Submit Error:', error);
-        alert('通信エラーが発生しました。');
-      })
-      .finally(() => {
-        submitBtn.textContent = "スプレッドシートに登録";
-        submitBtn.disabled = false;
-        document.getElementById('loadingOverlay').style.display = 'none';
+        body: JSON.stringify({ action: 'analyze', imageBase64: base64String, mimeType: mimeType })
       });
-    });
+      
+      const result = await response.json();
+      document.getElementById('loading').style.display = 'none';
+
+      if (result.status === 'success') {
+        // 返ってきたデータを入力フォームに自動セット
+        document.getElementById('date').value = result.data.date || '';
+        document.getElementById('store').value = result.data.store || '';
+        document.getElementById('amount').value = result.data.amount || '';
+        document.getElementById('items').value = result.data.items || '';
+        document.getElementById('imageUrl').value = result.data.imageUrl || '';
+        document.getElementById('inputMethod').value = 'OCR';
+        alert('読み取り完了しました。内容を確認・修正してください。');
+      } else {
+        alert('読み取りに失敗しました。');
+      }
+    }
+
+    // 2. スプレッドシート保存処理
+    async function saveData() {
+      const data = {
+        date: document.getElementById('date').value,
+        store: document.getElementById('store').value,
+        amount: document.getElementById('amount').value,
+        items: document.getElementById('items').value,
+        imageUrl: document.getElementById('imageUrl').value,
+        inputMethod: document.getElementById('inputMethod').value
+      };
+
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save', data: data })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        alert('スプレッドシートに保存しました！');
+        // フォームをリセット
+        document.querySelectorAll('input[type="text"], input[type="number"]').forEach(el => el.value = '');
+        document.getElementById('receiptImage').value = '';
+        document.getElementById('inputMethod').value = '手入力';
+      }
+    }
   </script>
 </body>
 </html>
