@@ -3,64 +3,214 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>家計簿アプリ</title>
+  <title>家族の家計簿</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    input, button { width: 100%; padding: 10px; margin-top: 10px; box-sizing: border-box; }
-    #loading { display: none; color: blue; }
+    /* 全体のやわらかいデザイン設定 */
+    :root {
+      --primary: #4CAF50;
+      --primary-dark: #388E3C;
+      --bg: #f4f7f6;
+      --text: #333;
+      --card-bg: #ffffff;
+    }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 15px;
+      padding-bottom: 80px; /* 下部の余白 */
+    }
+    
+    /* ヘッダーとリンク */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 1.3rem;
+      margin: 0;
+      color: var(--primary-dark);
+    }
+    .sheet-link {
+      background-color: #E8F5E9;
+      color: var(--primary-dark);
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    /* カード型のコンテナ */
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      font-size: 1.1rem;
+      margin-top: 0;
+      margin-bottom: 15px;
+      border-bottom: 2px solid var(--bg);
+      padding-bottom: 8px;
+    }
+
+    /* 入力フォームの装飾 */
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #666;
+      margin-top: 12px;
+    }
+    input[type="text"], input[type="number"], input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      margin-top: 4px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 1rem;
+      background-color: #fafafa;
+    }
+    input[type="text"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      background-color: #fff;
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+
+    /* ボタンの装飾 */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      box-sizing: border-box;
+    }
+    .btn:active { opacity: 0.8; transform: scale(0.98); }
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+    }
+    .btn-secondary {
+      background-color: #e0e0e0;
+      color: #333;
+      margin-top: 10px;
+    }
+    .btn-danger {
+      background-color: #ff5252;
+      color: white;
+      border-radius: 8px;
+      padding: 12px;
+      width: 45px;
+      font-size: 1.2rem;
+    }
+
+    /* ローディング画面（くるくる回るアニメーション） */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.9);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
-  <h2>レシート読み取り</h2>
-  
-  <!-- レシート撮影用 -->
-  <input type="file" id="receiptImage" accept="image/*" capture="environment">
-  <button onclick="analyzeImage()">画像を読み取る</button>
-  <p id="loading">読み取り中...（十数秒かかります）</p>
 
-  <hr>
-
-  <h2>編集・確認画面（手入力も可）</h2>
-  <label>日付: <input type="text" id="date"></label>
-  <label>店舗名: <input type="text" id="store"></label>
-  <label>レシート合計金額: <input type="number" id="total_amount"></label>
-
-  <h3 style="margin-bottom: 5px;">購入品目</h3>
-  <div id="items-container">
-    <!-- ここに動的に品目入力欄が追加されます -->
+  <div class="header">
+    <h1>🌱 家族の家計簿</h1>
+    <!-- ▼【重要】ご自身のスプレッドシートのURLに書き換えてください -->
+    <a href="https://docs.google.com/spreadsheets/d/1TRqq9f6InqtNoJiz7yct69GLAiJVXqUGk-2FSYnECD4/edit" target="_blank" class="sheet-link">📊 シートを見る</a>
   </div>
-  
-  <button onclick="addItemRow('', '')" style="background-color: #e0e0e0; color: #333; border: none;">＋ 品目を追加する</button>
 
-  <input type="hidden" id="imageUrl">
-  <input type="hidden" id="inputMethod" value="手入力">
+  <!-- レシート読み取りカード -->
+  <div class="card">
+    <h2>📸 レシートを読み取る</h2>
+    <!-- capture属性を削除し、カメラとライブラリの両方を選べるように変更 -->
+    <input type="file" id="receiptImage" accept="image/*">
+    <button class="btn btn-primary" onclick="analyzeImage()" style="margin-top: 10px;">✨ AIで自動入力する</button>
+  </div>
 
-  <hr>
+  <!-- 編集・確認カード -->
+  <div class="card">
+    <h2>✍️ 内容の確認・手入力</h2>
+    <label>📅 日付</label>
+    <input type="text" id="date" placeholder="2026/11/17">
+    
+    <label>🏪 店舗名</label>
+    <input type="text" id="store" placeholder="スーパー〇〇">
+    
+    <label>💰 レシート合計金額</label>
+    <input type="number" id="total_amount" placeholder="1500">
 
-  <button onclick="saveData()" style="background-color: #4CAF50; color: white; font-weight: bold;">この内容で確定する</button>
+    <label style="margin-top: 20px; border-bottom: 1px solid #eee; padding-bottom: 5px;">🛒 購入品目</label>
+    <div id="items-container" style="margin-top: 10px;">
+      <!-- ここに動的に品目入力欄が追加されます -->
+    </div>
+    
+    <button class="btn btn-secondary" onclick="addItemRow('', '')">＋ 品目を追加する</button>
+
+    <input type="hidden" id="imageUrl">
+    <input type="hidden" id="inputMethod" value="手入力">
+  </div>
+
+  <button class="btn btn-primary" onclick="saveData()" style="padding: 18px; font-size: 1.1rem;">✅ この内容でシートに記録する</button>
+
+  <!-- ローディング表示用 -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <p style="font-weight: bold; color: #555;">AIがレシートを解読中...<br><span style="font-size: 0.8rem; font-weight: normal;">数秒かかります</span></p>
+  </div>
 
   <script>
-    // ▼「新しいデプロイ」で発行されたURLをここに貼り付けてください
+    // ▼【重要】以前発行したGASのウェブアプリURLを貼り付けてください
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzNFk4t3t0yzb_78mUixvvaAGlKSNRSz7gLg8rIOtWrxMlbLS5gBJDiRvBqqYFWvFhVjQ/exec';
 
-    // 品目の入力行（品目名＋金額＋削除ボタン）を動的に追加する関数
     function addItemRow(nameValue, priceValue) {
       const container = document.getElementById('items-container');
       const row = document.createElement('div');
       row.className = 'item-row';
       row.style.display = 'flex';
-      row.style.gap = '5px';
+      row.style.gap = '8px';
       row.style.marginBottom = '10px';
       
       row.innerHTML = `
         <input type="text" placeholder="品目名" value="${nameValue || ''}" class="item-name" style="flex: 2; margin: 0;">
         <input type="number" placeholder="金額" value="${priceValue || ''}" class="item-price" style="flex: 1; margin: 0;">
-        <button type="button" onclick="this.parentElement.remove()" style="width: 40px; margin: 0; background-color: #ff5252; color: white; border: none; border-radius: 4px;">×</button>
+        <button type="button" class="btn-danger" onclick="this.parentElement.remove()">×</button>
       `;
       container.appendChild(row);
     }
 
-    // 画面読み込み時に、初期状態として1行だけ空の品目枠を入れておく
     window.onload = () => { addItemRow('', ''); };
 
     function getBase64(file) {
@@ -76,7 +226,9 @@
       const fileInput = document.getElementById('receiptImage');
       if (!fileInput.files.length) return alert('画像を選択してください');
 
-      document.getElementById('loading').style.display = 'block';
+      // ローディング画面を表示
+      document.getElementById('loading-overlay').style.display = 'flex';
+      
       const file = fileInput.files[0];
       const base64Data = await getBase64(file);
       const base64String = base64Data.split(',')[1];
@@ -88,47 +240,48 @@
         });
         
         const result = await response.json();
-        document.getElementById('loading').style.display = 'none';
+        document.getElementById('loading-overlay').style.display = 'none';
 
         if (result.status === 'success') {
           document.getElementById('date').value = result.data.date || '';
           document.getElementById('store').value = result.data.store || '';
           document.getElementById('total_amount').value = result.data.total_amount || '';
           document.getElementById('imageUrl').value = result.data.imageUrl || '';
-          document.getElementById('inputMethod').value = 'OCR';
+          document.getElementById('inputMethod').value = 'AI自動読み取り'; // OCRから表記変更
 
-          // 一旦既存の品目入力枠をすべてクリア
           document.getElementById('items-container').innerHTML = '';
 
-          // Geminiから返ってきた品目の数だけ入力枠を自動生成
           if (result.data.items && result.data.items.length > 0) {
             result.data.items.forEach(item => {
               addItemRow(item.name, item.price);
             });
           } else {
-            addItemRow('', ''); // 品目が無い場合は空枠を1つ
+            addItemRow('', '');
           }
-          alert('読み取り完了しました。内容を確認・修正してください。');
         } else {
           alert('読み取りエラー: ' + result.message);
         }
       } catch (e) {
-        document.getElementById('loading').style.display = 'none';
+        document.getElementById('loading-overlay').style.display = 'none';
         alert('通信エラー: ' + e.toString());
       }
     }
 
     async function saveData() {
-      // 画面上のすべての品目行（.item-row）を取得し、配列にまとめる
       const itemElements = document.querySelectorAll('.item-row');
       const itemsArray = [];
       itemElements.forEach(row => {
         const name = row.querySelector('.item-name').value;
         const price = row.querySelector('.item-price').value;
-        if (name || price) { // どちらかが入力されていれば保存対象にする
+        if (name || price) {
           itemsArray.push({ name: name, price: price });
         }
       });
+
+      // 最低限の入力チェック
+      if (!document.getElementById('store').value && itemsArray.length === 0) {
+        return alert('店舗名か品目を入力してください');
+      }
 
       const data = {
         date: document.getElementById('date').value,
@@ -139,6 +292,12 @@
         inputMethod: document.getElementById('inputMethod').value
       };
 
+      // 保存中はボタンの文字を変える
+      const saveBtn = document.querySelector('.btn-primary:last-of-type');
+      const originalText = saveBtn.innerText;
+      saveBtn.innerText = '記録中...';
+      saveBtn.disabled = true;
+
       try {
         const response = await fetch(GAS_URL, {
           method: 'POST',
@@ -147,8 +306,7 @@
 
         const result = await response.json();
         if (result.status === 'success') {
-          alert('スプレッドシートに保存しました！');
-          // フォームをリセット
+          alert('スプレッドシートに記録しました！');
           document.getElementById('date').value = '';
           document.getElementById('store').value = '';
           document.getElementById('total_amount').value = '';
@@ -161,6 +319,9 @@
         }
       } catch (e) {
         alert('通信エラー: ' + e.toString());
+      } finally {
+        saveBtn.innerText = originalText;
+        saveBtn.disabled = false;
       }
     }
   </script>
