@@ -271,7 +271,19 @@
       const file = fileInput.files[0];
       const base64Data = await getBase64(file);
       const base64String = base64Data.split(',')[1];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const base64Data = await getBase64(file);
+        imagesData.push({
+          base64String: base64Data.split(',')[1],
+          mimeType: file.type
+        });
+      }
       
+      // ▼ここを1行追加（fetch送信の直前）
+      alert(imagesData.length + '枚の画像をAIに送信します');
+
       try {
         const response = await fetch(GAS_URL, {
           method: 'POST',
