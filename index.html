@@ -301,7 +301,7 @@
         inputElement.focus();
       } else {
         inputElement.style.display = 'none';
-        inputElement.value = ''; // 別の科目を選び直した場合はクリア
+        inputElement.value = ''; 
       }
     }
 
@@ -316,7 +316,6 @@
         "住居費", "水道光熱費", "通信費", "保険料", "教育費", "自動車費", "その他費用"
       ];
       
-      // AIが推測した科目がリストにあるか判定（リスト外なら最初から手入力モード）
       const isCustom = categoryValue && !categories.includes(categoryValue);
       const selectValue = isCustom ? "custom" : (categoryValue || "");
       
@@ -325,7 +324,6 @@
         const selected = (cat === selectValue) ? 'selected' : '';
         optionsHtml += `<option value="${cat}" ${selected}>${cat}</option>`;
       });
-      // 一番下に手入力用の選択肢を追加
       optionsHtml += `<option value="custom" ${isCustom ? 'selected' : ''}>✍️ 直接入力する...</option>`;
 
       row.innerHTML = `
@@ -333,14 +331,12 @@
           <input type="text" placeholder="品目名" value="${nameValue || ''}" class="item-name">
           <div class="item-inputs-bottom">
             <input type="number" placeholder="金額" value="${priceValue || ''}" class="item-price" oninput="updateCalculatedTotal()">
-            
             <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
               <select class="item-category-select" onchange="toggleCategoryInput(this)" style="padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; background-color: #fff; font-family: inherit;">
                 ${optionsHtml}
               </select>
               <input type="text" placeholder="科目名を手入力" value="${isCustom ? categoryValue : ''}" class="item-category-input" style="display: ${isCustom ? 'block' : 'none'}; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; font-family: inherit; background-color: #fff;">
             </div>
-
           </div>
         </div>
         <button type="button" class="btn-danger" onclick="this.parentElement.remove(); updateCalculatedTotal();">×</button>
@@ -352,7 +348,6 @@
     // ▼ アプリ起動時の初期設定
     window.onload = () => { 
       addItemRow('', '', ''); 
-      // 今日のお日付をYYYY-MM-DD形式で自動セット
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -395,7 +390,6 @@
       const fileInput = document.getElementById('receiptImage');
       if (!fileInput.files.length) return alert('画像を選択してください');
 
-      // ローディング画面を表示
       document.getElementById('loading-overlay').style.display = 'flex';
       
       const files = fileInput.files;
@@ -420,7 +414,6 @@
         document.getElementById('loading-overlay').style.display = 'none';
 
         if (result.status === 'success') {
-          // AIが「YYYY/MM/DD」で返してきても「YYYY-MM-DD」に変換してセットする
           if (result.data.date) {
             document.getElementById('date').value = result.data.date.replace(/\//g, '-');
           } else {
@@ -429,13 +422,10 @@
           
           document.getElementById('store').value = result.data.store || '';
           document.getElementById('receipt_total').value = result.data.total_amount || '';
-          
           document.getElementById('imageUrl').value = result.data.imageUrl || '';
-          document.getElementById('inputMethod').value = 'AI自動読み取り';
-
+          document.getElementById('inputMethod').value = 'レシート読み取り';
           document.getElementById('items-container').innerHTML = '';
 
-          // AIから抽出された品目と科目をセット
           if (result.data.items && result.data.items.length > 0) {
             result.data.items.forEach(item => {
               addItemRow(item.name, item.price, item.category);
@@ -460,8 +450,6 @@
       itemElements.forEach(row => {
         const name = row.querySelector('.item-name').value;
         const price = row.querySelector('.item-price').value;
-        
-        // プルダウンか手入力かを判定して科目を確定させる
         const selectVal = row.querySelector('.item-category-select').value;
         const inputVal = row.querySelector('.item-category-input').value;
         const category = (selectVal === 'custom') ? inputVal : selectVal;
@@ -484,7 +472,6 @@
         inputMethod: document.getElementById('inputMethod').value
       };
 
-      // 保存ボタンをローディング状態にする
       const saveBtn = document.getElementById('saveBtn');
       const originalHtml = saveBtn.innerHTML;
       
@@ -502,7 +489,6 @@
         if (result.status === 'success') {
           alert('スプレッドシートに記録しました！');
           
-          // 記録後のフォームリセット
           const today = new Date();
           const yyyy = today.getFullYear();
           const mm = String(today.getMonth() + 1).padStart(2, '0');
