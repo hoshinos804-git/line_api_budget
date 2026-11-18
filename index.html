@@ -181,7 +181,7 @@
   <div class="card">
     <h2>✍️ 内容の確認・手入力</h2>
     <label>📅 日付</label>
-    <input type="text" id="date" placeholder="2026/11/17">
+    <input type="date" id="date">
     
     <label>🏪 店舗名</label>
     <input type="text" id="store" placeholder="スーパー〇〇">
@@ -248,7 +248,15 @@
       updateCalculatedTotal(); // 行が追加された時も計算
     }
 
-    window.onload = () => { addItemRow('', ''); };
+    window.onload = () => { 
+      addItemRow('', ''); 
+      // アプリを開いた時に今日の日付を自動セットする
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
+    };
 
     function previewImages() {
       const fileInput = document.getElementById('receiptImage');
@@ -306,7 +314,11 @@
         document.getElementById('loading-overlay').style.display = 'none';
 
         if (result.status === 'success') {
-          document.getElementById('date').value = result.data.date || '';
+          if (result.data.date) {
+            document.getElementById('date').value = result.data.date.replace(/\//g, '-');
+          } else {
+            document.getElementById('date').value = '';
+          }
           document.getElementById('store').value = result.data.store || '';
           
           // ▼変更：AIが読み取った合計金額は「参考（receipt_total）」にのみ入れる
