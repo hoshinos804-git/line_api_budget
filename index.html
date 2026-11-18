@@ -142,6 +142,22 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    #image-preview-container {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      overflow-x: auto; /* はみ出たら横スクロール */
+      padding-bottom: 5px;
+    }
+    .preview-image {
+      width: 70px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
   </style>
 </head>
 <body>
@@ -155,9 +171,10 @@
   <!-- レシート読み取りカード -->
   <div class="card">
     <h2>📸 レシートを読み取る</h2>
-    <!-- capture属性を削除し、カメラとライブラリの両方を選べるように変更 -->
-    <input type="file" id="receiptImage" accept="image/*">
-    <button class="btn btn-primary" onclick="analyzeImage()" style="margin-top: 10px;">✨ AIで自動入力する</button>
+    <p style="font-size: 0.8rem; color: #666; margin-top: 0; margin-bottom: 10px;">長いレシートは2〜3枚に分けて撮影し、同時に複数選択できます。</p>
+    <input type="file" id="receiptImage" accept="image/*" multiple onchange="previewImages()">
+    <div id="image-preview-container"></div>
+    <button class="btn btn-primary" onclick="analyzeImage()" style="margin-top: 10px;">✨ AIで一括入力する</button>
   </div>
 
   <!-- 編集・確認カード -->
@@ -192,6 +209,7 @@
   </div>
 
   <script>
+    
     // ▼【重要】以前発行したGASのウェブアプリURLを貼り付けてください
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzNFk4t3t0yzb_78mUixvvaAGlKSNRSz7gLg8rIOtWrxMlbLS5gBJDiRvBqqYFWvFhVjQ/exec';
 
@@ -212,6 +230,27 @@
     }
 
     window.onload = () => { addItemRow('', ''); };
+
+    // ▼ここから追加：画像を選んだときにプレビューを表示する処理
+    function previewImages() {
+      const fileInput = document.getElementById('receiptImage');
+      const container = document.getElementById('image-preview-container');
+      container.innerHTML = ''; // 前回表示した画像を一旦クリア
+
+      if (fileInput.files.length > 0) {
+        Array.from(fileInput.files).forEach(file => {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'preview-image';
+            container.appendChild(img);
+          }
+          reader.readAsDataURL(file);
+        });
+      }
+    }
+    // ▲ここまで追加
 
     function getBase64(file) {
       return new Promise((resolve, reject) => {
