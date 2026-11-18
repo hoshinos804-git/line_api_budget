@@ -218,6 +218,18 @@
     // ▼【重要】以前発行したGASのウェブアプリURLを貼り付けてください
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzNFk4t3t0yzb_78mUixvvaAGlKSNRSz7gLg8rIOtWrxMlbLS5gBJDiRvBqqYFWvFhVjQ/exec';
 
+    function updateCalculatedTotal() {
+      const priceInputs = document.querySelectorAll('.item-price');
+      let total = 0;
+      priceInputs.forEach(input => {
+        const val = parseFloat(input.value);
+        if (!isNaN(val)) {
+          total += val;
+        }
+      });
+      document.getElementById('calculated_total').value = total;
+    }
+
     function addItemRow(nameValue, priceValue) {
       const container = document.getElementById('items-container');
       const row = document.createElement('div');
@@ -226,21 +238,22 @@
       row.style.gap = '8px';
       row.style.marginBottom = '10px';
       
+      // oninputイベントと削除ボタンに updateCalculatedTotal() を追加し、常に再計算させる
       row.innerHTML = `
         <input type="text" placeholder="品目名" value="${nameValue || ''}" class="item-name" style="flex: 2; margin: 0;">
-        <input type="number" placeholder="金額" value="${priceValue || ''}" class="item-price" style="flex: 1; margin: 0;">
-        <button type="button" class="btn-danger" onclick="this.parentElement.remove()">×</button>
+        <input type="number" placeholder="金額" value="${priceValue || ''}" class="item-price" oninput="updateCalculatedTotal()" style="flex: 1; margin: 0;">
+        <button type="button" class="btn-danger" onclick="this.parentElement.remove(); updateCalculatedTotal();">×</button>
       `;
       container.appendChild(row);
+      updateCalculatedTotal(); // 行が追加された時も計算
     }
 
     window.onload = () => { addItemRow('', ''); };
 
-    // ▼ここから追加：画像を選んだときにプレビューを表示する処理
     function previewImages() {
       const fileInput = document.getElementById('receiptImage');
       const container = document.getElementById('image-preview-container');
-      container.innerHTML = ''; // 前回表示した画像を一旦クリア
+      container.innerHTML = ''; 
 
       if (fileInput.files.length > 0) {
         Array.from(fileInput.files).forEach(file => {
@@ -255,7 +268,6 @@
         });
       }
     }
-    // ▲ここまで追加
 
     function getBase64(file) {
       return new Promise((resolve, reject) => {
@@ -270,13 +282,11 @@
       const fileInput = document.getElementById('receiptImage');
       if (!fileInput.files.length) return alert('画像を選択してください');
 
-      // ローディング画面を表示
       document.getElementById('loading-overlay').style.display = 'flex';
       
       const files = fileInput.files;
       const imagesData = [];
       
-      // ▼古い1枚処理のコードを削除し、ここで選ばれたすべての画像を配列化します
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const base64Data = await getBase64(file);
@@ -285,13 +295,10 @@
           mimeType: file.type
         });
       }
-      
-      alert(imagesData.length + '枚の画像をAIに送信します');
 
       try {
         const response = await fetch(GAS_URL, {
           method: 'POST',
-          // ▼ココが一番重要！ imageBase64 ではなく、images という名前で配列(imagesData)を送る
           body: JSON.stringify({ action: 'analyze', images: imagesData })
         });
         
@@ -301,7 +308,10 @@
         if (result.status === 'success') {
           document.getElementById('date').value = result.data.date || '';
           document.getElementById('store').value = result.data.store || '';
-          document.getElementById('total_amount').value = result.data.total_amount || '';
+          
+          // ▼変更：AIが読み取った合計金額は「参考（receipt_total）」にのみ入れる
+          document.getElementById('receipt_total').value = result.data.total_amount || '';
+          
           document.getElementById('imageUrl').value = result.data.imageUrl || '';
           document.getElementById('inputMethod').value = 'AI自動読み取り';
 
@@ -334,7 +344,6 @@
         }
       });
 
-      // 最低限の入力チェック
       if (!document.getElementById('store').value && itemsArray.length === 0) {
         return alert('店舗名か品目を入力してください');
       }
@@ -342,13 +351,13 @@
       const data = {
         date: document.getElementById('date').value,
         store: document.getElementById('store').value,
-        total_amount: document.getElementById('total_amount').value,
+        // ▼変更：スプレッドシートには「自動計算された合計金額(calculated_total)」を送る
+        total_amount: document.getElementById('calculated_total').value,
         items: itemsArray,
         imageUrl: document.getElementById('imageUrl').value,
         inputMethod: document.getElementById('inputMethod').value
       };
 
-      // 保存中はボタンの文字を変える
       const saveBtn = document.querySelector('.btn-primary:last-of-type');
       const originalText = saveBtn.innerText;
       saveBtn.innerText = '記録中...';
@@ -365,10 +374,12 @@
           alert('スプレッドシートに記録しました！');
           document.getElementById('date').value = '';
           document.getElementById('store').value = '';
-          document.getElementById('total_amount').value = '';
+          document.getElementById('receipt_total').value = ''; // リセット
+          document.getElementById('calculated_total').value = '0'; // リセット
           document.getElementById('receiptImage').value = '';
           document.getElementById('inputMethod').value = '手入力';
           document.getElementById('items-container').innerHTML = '';
+          document.getElementById('image-preview-container').innerHTML = '';
           addItemRow('', '');
         } else {
           alert('保存エラー: ' + result.message);
