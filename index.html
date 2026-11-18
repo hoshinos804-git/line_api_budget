@@ -186,8 +186,9 @@
     <label>🏪 店舗名</label>
     <input type="text" id="store" placeholder="スーパー〇〇">
     
-    <label>💰 レシート合計金額</label>
-    <input type="number" id="total_amount" placeholder="1500">
+    <!-- 新設：自動計算される合計金額（手入力不可） -->
+    <label>💰 入力合計金額</label>
+    <input type="number" id="calculated_total" placeholder="0" readonly style="background-color: #e9ecef; font-weight: bold; color: #333; outline: none;">
 
     <label style="margin-top: 20px; border-bottom: 1px solid #eee; padding-bottom: 5px;">🛒 購入品目</label>
     <div id="items-container" style="margin-top: 10px;">
@@ -195,6 +196,10 @@
     </div>
     
     <button class="btn btn-secondary" onclick="addItemRow('', '')">＋ 品目を追加する</button>
+
+    <!-- 移動・変更：AIが読み取った元の合計金額（シートには送らない参考値） -->
+    <label style="margin-top: 25px; font-size: 0.8rem; color: #888;">📝 参考：レシート記載の合計金額（保存されません）</label>
+    <input type="number" id="receipt_total" placeholder="1500" style="color: #888; background-color: #fafafa;">
 
     <input type="hidden" id="imageUrl">
     <input type="hidden" id="inputMethod" value="手入力">
